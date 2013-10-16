@@ -1,8 +1,15 @@
 local ffi = require "ffi"
 
-local t = {}
+local p = {}
 
-t.EXTERNALPCI_REQ = {
+p.VIRTIO_NET = {
+  VENDOR_ID           = 0x1AF4,
+  DEVICE_ID           = 0x1000,
+  SUBSYSTEM_ID        = 0x0001,
+  SUBSYSTEM_VENDOR_ID = 0x1AF4,
+}
+
+p.EXTERNALPCI_REQ = {
   REGION = 0,
   PCI_INFO = 1,
   IOT = 2,
@@ -11,11 +18,11 @@ t.EXTERNALPCI_REQ = {
   EXIT = 5,
 }
 
-t.EXTERNALPCI_RES_FLAG = {
+p.EXTERNALPCI_RES_FLAG = {
   FETCH_IRQS = 1,
 }
 
-t.IOT = {
+p.IOT = {
   READ = 0,
   WRITE = 1,
 }
@@ -87,12 +94,17 @@ struct externalpci_res {
 };
 ]]
 
-t.region = ffi.typeof("struct externalpci_region")
-t.req = ffi.typeof("struct externalpci_req")
-t.res = ffi.typeof("struct externalpci_res")
-t.iot_req = ffi.typeof("struct externalpci_iot_req")
-t.iot_res = ffi.typeof("struct externalpci_iot_res")
-t.irq_req = ffi.typeof("struct externalpci_irq_req")
-t.irq_res = ffi.typeof("struct externalpci_irq_res")
-t.pci_info_res = ffi.typeof("struct externalpci_pci_info_res")
+local function lenfn(tp) return ffi.sizeof(tp) end
+local mt = {__len = lenfn}
+
+p.region = ffi.typeof("struct externalpci_region")
+p.req = ffi.metatype("struct externalpci_req", mt)
+p.res = ffi.metatype("struct externalpci_res", mt)
+p.iot_req = ffi.typeof("struct externalpci_iot_req")
+p.iot_res = ffi.typeof("struct externalpci_iot_res")
+p.irq_req = ffi.typeof("struct externalpci_irq_req")
+p.irq_res = ffi.typeof("struct externalpci_irq_res")
+p.pci_info_res = ffi.typeof("struct externalpci_pci_info_res")
+
+return p
 
