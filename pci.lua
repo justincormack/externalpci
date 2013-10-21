@@ -6,7 +6,7 @@ end
 package.path = "./?.lua;./ljsyscall/?.lua;"
 
 local S = require "syscall"
-local t, c = S.t, S.c
+local t, c, s = S.t, S.c, S.types.s
 local p = require "types" -- pci types
 
 local maxevents = 1024
@@ -81,6 +81,7 @@ for i, ev in ep:get() do
       print("client closed connection")
       n = nil
     end
+    print("got request")
     if n then
       local recvfd
       for mc, cmsg in msg:cmsgs() do
@@ -120,6 +121,7 @@ for i, ev in ep:get() do
       msg.control = chdr
     end
     local n, err = fd:sendmsg(msg)
+    print("sent response")
     if n and n ~= #res then n, err = nil, "short send" end
     if not n then
       if err then print(err) end
