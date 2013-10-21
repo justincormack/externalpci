@@ -3,6 +3,8 @@ local function assert(cond, s, ...)
   return cond, s, ...
 end
 
+package.path = "./?.lua;./ljsyscall/?.lua;"
+
 local S = require "syscall"
 local t, c = S.t, S.c
 local p = require "types" -- pci types
