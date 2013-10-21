@@ -50,8 +50,6 @@ local evfd = S.eventfd() -- eventfd for network events
 
 local w = {}
 
-local function loop()
-
 local req, res = p.req(), p.res()
 local iovreq = t.iovec(req, #req)
 local iovres = t.iovec(res, #res)
@@ -72,7 +70,7 @@ local function resp(fd)
     n = nil
   end
   print("got request")
-  if n then
+  if n and tonumber(msg.msg_controllen) ~= 0 then
     for mc, cmsg in msg:cmsgs() do
       for fd in cmsg:fds() do
         recvfd = fd
@@ -90,7 +88,11 @@ local function resp(fd)
       print("unhandled request type " .. req.type)
       n = nil
     else
+print("ff")
+print(res, req, res.type, req.type)
+
       res.type = req.type
+print("ok")
       n = handle_request[req.type](req, res, recvfd)
       if not n then print("req handler failed") end
     end
@@ -122,6 +124,8 @@ local function resp(fd)
   end
   return true
 end
+
+local function loop()
 
 for i, ev in ep:get() do
 
