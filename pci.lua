@@ -42,13 +42,17 @@ assert(sock:listen())
 local ep = poll:init()
 ep:add(sock)
 
+local evfd = S.eventfd() -- eventfd for network events
+
 local w = {}
 
 local function loop()
 
 local req, res = p.req(), p.res()
-local iov = t.iovec(req, #req)
-local msg = t.msghdr{io = iov, control = req}
+local iovreq = t.iovec(req, #req)
+local iovres = t.iovec(res, #res)
+local chdr = t.cmsghdr("socket", "rights", nil, s.int) -- space for single fd
+local msg = t.msghdr()
 
 for i, ev in ep:get() do
 
@@ -67,6 +71,7 @@ for i, ev in ep:get() do
     until not a
   else
     local fd = w[ev.fd]
+    msg.io, msg.control = iovreq, chdr
     local n, err = fd:recvmsg(msg)
     if n and #n ~= #req then
       print("bad request size")
@@ -107,7 +112,21 @@ for i, ev in ep:get() do
       w[ev.fd] = nil
       print("connection closed")
     end
-    -- TODO send res
+
+    -- send response
+    msg.io, msg.control = iovres, nil
+    if res.type == p.EXTERNALPCI_REQ.PCI_INFO then -- need to send fd
+      chdr:setdata(res.pci_info.hotspot_fd)
+      msg.control = chdr
+    end
+    local n, err = fd:sendmsg(msg)
+    if n and n ~= #res then n, err = nil, "short send" end
+    if not n then
+      if err then print(err) end
+      fd:close()
+      w[ev.fd] = nil
+      print("connection closed")
+    end
   end
 end
 
@@ -116,11 +135,25 @@ return loop()
 end
 
 handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
-  res.pci_info.vendor_id, res.pci_info.device_id, res.pci_info.subsystem_id, res.pci_info.subsystem_vendor_id =
+  local info = res.pci_info
+  -- device info (static)
+  info.vendor_id, info.device_id, info.subsystem_id, info.subsystem_vendor_id =
     p.VIRTIO_NET.VENDOR_ID, p.VIRTIO_NET.DEVICE_ID, p.VIRTIO_NET.SUBSYSTEM_ID, p.VIRTIO_NET.SUBSYSTEM_VENDOR_ID
 
+  -- bar sizes, just one IO space
+  info.bar[0] = 0x40 + c.PCI_BASE_ADDRESS.SPACE_IO
+  for i = 1, 5 do
+    info.bar[i].size = 0
+  end
 
+  -- irq info
+  info.msix_vectors = p.MSIX_VECTORS
 
+  -- hotspot
+  info.hotspot_bar = 0
+  info.hotspot_addr = c.VIRTIO.PCI_QUEUE_NOTIFY
+  info.hotspot_size = 2
+  info.hotspot_fd = evfd:getfd()
 end
 
 

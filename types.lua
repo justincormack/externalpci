@@ -27,6 +27,10 @@ p.IOT = {
   WRITE = 1,
 }
 
+p.MSIX_VECTORS = 3
+p.VIRT_QUEUES  = 3
+p.QUEUE_ELEMENTS = 1024
+
 ffi.cdef[[
 struct externalpci_region {
   int fd;
