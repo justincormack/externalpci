@@ -3,6 +3,8 @@ local function assert(cond, s, ...)
   return cond, s, ...
 end
 
+local ffi = require "ffi"
+
 package.path = "./?.lua;./ljsyscall/?.lua;"
 
 local S = require "syscall"
@@ -55,10 +57,7 @@ local chdr = t.cmsghdr("socket", "rights", nil, s.int) -- space for single fd
 local msg = t.msghdr()
 
 local function resp(fd)
-  msg.io, msg.control = iovreq, chdr
-
-print("jj", msg.msg_iov)
-print("jj", msg.msg_iov, msg.msg_iov.iov_len, msg.msg_iov.iov_cnt)
+  msg.iov, msg.control = iovreq, chdr
   local n, err = fd:recvmsg(msg)
   if n and n ~= #req then
     print("bad request size " .. n .. " not " .. #req)
@@ -74,12 +73,13 @@ print("jj", msg.msg_iov, msg.msg_iov.iov_len, msg.msg_iov.iov_cnt)
     for mc, cmsg in msg:cmsgs() do
       for fd in cmsg:fds() do
         recvfd = fd
+        recvfd:nogc() -- we are storing in structs for now, TODO should be more Lua like
       end
     end
     if req.type == p.EXTERNALPCI_REQ.REGION then
-      if recvfd then req.region.fd = recvfd else n = nil end
+      if recvfd then req.region.fd = recvfd:getfd() else n = nil end
     elseif req.type == p.EXTERNALPCI_REQ.IRQ then
-      if recvfd then req.irq_req.fd = recvfd else n = nil end
+      if recvfd then req.irq_req.fd = recvfd:getfd() else n = nil end
     elseif recvfd then
       print("unexpected fd sent")
       n = nil
