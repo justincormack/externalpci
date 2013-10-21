@@ -177,5 +177,12 @@ handle_request[p.EXTERNALPCI_REQ.REGION] = function(req, res, fd)
   return true
 end
 
+handle_request[p.EXTERNALPCI_REQ.RESET] = function(req, res)
+  print("RESET device")
+  -- TODO tell Snabb we have a device reset
+  return true
+end
+
+
 loop()
 
