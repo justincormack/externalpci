@@ -62,13 +62,11 @@ for i, ev in ep:get() do
   end
 
   if ev.fd == sock:getfd() then -- server socket, accept
-    repeat
-      local a, err = sock:accept(ss, nil)
-      if a then
-        ep:add(a)
-        w[a:getfd()] = a
-      end
-    until not a
+    local a, err = sock:accept(ss, nil)
+    if a then
+      ep:add(a)
+      w[a:getfd()] = a
+    end
   else
     local fd = w[ev.fd]
     msg.io, msg.control = iovreq, chdr
