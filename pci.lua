@@ -56,9 +56,12 @@ local msg = t.msghdr()
 
 local function resp(fd)
   msg.io, msg.control = iovreq, chdr
+
+print("jj", msg.msg_iov)
+print("jj", msg.msg_iov, msg.msg_iov.iov_len, msg.msg_iov.iov_cnt)
   local n, err = fd:recvmsg(msg)
   if n and n ~= #req then
-    print("bad request size")
+    print("bad request size " .. n .. " not " .. #req)
     n = nil
   end
   if n and n == 0 then
