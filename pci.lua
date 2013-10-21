@@ -1,9 +1,13 @@
+-- proof of concept
+
+-- TODO identify client when outputting (fd to client number)
+
 local function assert(cond, s, ...)
   if cond == nil then error(tostring(s)) end
   return cond, s, ...
 end
 
-local ffi = require "ffi"
+local ffi, bit = require "ffi", require "bit"
 
 package.path = "./?.lua;./ljsyscall/?.lua;"
 
@@ -46,7 +50,7 @@ assert(sock:listen())
 local ep = poll:init()
 ep:add(sock)
 
-local evfd = S.eventfd() -- eventfd for network events
+local evfd = assert(S.eventfd()) -- eventfd for network events
 
 local w = {}
 
@@ -69,7 +73,7 @@ local function resp(fd)
     print("client closed connection")
     n = nil
   end
-  if n and tonumber(msg.msg_controllen) ~= 0 then
+  if n then
     for mc, cmsg in msg:cmsgs() do
       for fd in cmsg:fds() do
         recvfd = fd
@@ -183,6 +187,39 @@ handle_request[p.EXTERNALPCI_REQ.RESET] = function(req, res)
   return true
 end
 
+handle_request[p.EXTERNALPCI_REQ.IRQ] = function(req, res, fd)
+  if req.irq_req.idx < 0 or req.irq_req.idx >= p.MSIX_VECTORS then
+    print("invalid index for MSIX")
+    return
+  end
+  -- TODO check that fd not received for this index already
+  print("got IRQ fd " .. fd:getfd() .. "for MSIX " .. req.irq_req.idx)
+  -- give fd to Snabb for signalling on!
+  if req.irq_req.idx + 1 < p.MSIX_VECTORS then res.irq_res.more = 1 else res.irq_res.more = 0 end
+  return true
+end
+
+function devread(bar, addr, size)
+  print("unimplemented dev read")
+  -- TODO!!!!
+  return 0
+end
+
+function devwrite(bar, addr, size, value) -- return true if irqss changed
+  print("unimplemented dev write")
+  -- TODO!!!!
+  return false
+end
+
+handle_request[p.EXTERNALPCI_REQ.IOT] = function(req, res)
+  if req.iot_req.type == p.IOT.READ then -- read
+    res.iot_res.value = devread(req.iot_req.bar, req.iot_req.hwaddr, req.iot_req.size)
+  else -- write
+    local irqs_changed = devwrite(req.iot_req.bar, req.iot_req.hwaddr, req.iot_req.size, req.iot_req.value)
+    if irqs_changed then res.flags = bit.bor(res.flags, p.EXTERNALPCI_RES_FLAG_FETCH_IRQS) end
+  end
+  return true
+end
 
 loop()
 
