@@ -8,7 +8,7 @@ local ffi = require "ffi"
 package.path = "./?.lua;./ljsyscall/?.lua;"
 
 local S = require "syscall"
-local t, c, s = S.t, S.c, S.types.s
+local t, c, s, pt = S.t, S.c, S.types.s, S.types.pt
 local p = require "types" -- pci types
 
 local maxevents = 1024
@@ -35,6 +35,8 @@ handle_request = {}
 local sockfile = "/tmp/sv3"
 S.unlink(sockfile)
 
+local address_hint = t.uintptr(0x100000000ULL)
+
 local sock = assert(S.socket("local", "seqpacket"))
 local sa = t.sockaddr_un(sockfile)
 
@@ -57,6 +59,7 @@ local chdr = t.cmsghdr("socket", "rights", nil, s.int) -- space for single fd
 local msg = t.msghdr()
 
 local function resp(fd)
+  local recvfd
   msg.iov, msg.control = iovreq, chdr
   local n, err = fd:recvmsg(msg)
   if n and n ~= #req then
@@ -69,17 +72,13 @@ local function resp(fd)
   end
   print("got request")
   if n then
-    local recvfd
     for mc, cmsg in msg:cmsgs() do
       for fd in cmsg:fds() do
         recvfd = fd
-        recvfd:nogc() -- we are storing in structs for now, TODO should be more Lua like
       end
     end
-    if req.type == p.EXTERNALPCI_REQ.REGION then
-      if recvfd then req.region.fd = recvfd:getfd() else n = nil end
-    elseif req.type == p.EXTERNALPCI_REQ.IRQ then
-      if recvfd then req.irq_req.fd = recvfd:getfd() else n = nil end
+    if req.type == p.EXTERNALPCI_REQ.REGION or req.type == p.EXTERNALPCI_REQ.IRQ then
+      if not recvfd then n = nil end
     elseif recvfd then
       print("unexpected fd sent")
       n = nil
@@ -91,7 +90,8 @@ local function resp(fd)
       n = nil
     else
       res.type = req.type
-      n = handle_request[req.type](req, res)
+      n = handle_request[req.type](req, res, recvfd)
+      if not n then print("req handler failed") end
     end
   end
   if not n then
@@ -162,9 +162,39 @@ handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
   info.hotspot_addr = c.VIRTIO.PCI_QUEUE_NOTIFY
   info.hotspot_size = 2
   info.hotspot_fd = evfd:getfd()
+
+  return true
 end
 
-
+handle_request[p.EXTERNALPCI_REQ.REGION] = function(req, res, fd)
+--[[
+     static uintptr_t address_hint = (1ULL << 32);
+      Region r(req.region.phys_addr,
+	       req.region.size,
+	       reinterpret_cast<uint8_t *>(mmap((void *)address_hint, req.region.size,
+						PROT_READ | PROT_WRITE,
+						MAP_SHARED,
+						req.region.fd,
+						req.region.offset)));
+      close(req.region.fd);
+      if (r.mapping == MAP_FAILED) {
+	_sw.logf("mmap failed.");
+	return false;
+      }
+      address_hint += req.region.size;
+      return insert_region(r);
+]]
+  local mem, err = S.mmap(pt.void(address_hint), req.region.size, "read, write", "shared", fd, req.region.offset)
+  fd:close()
+  if not mem then
+    print("mmap: " .. tostring(err))
+    return
+  end
+  address_hint = address_hint + req.region.size
+  print("Inserting memory region " .. tostring(req.region.phys_addr) .. "+" .. tostring(req.region.size) .. " at " .. tostring(mem))
+  -- TODO pass mem, size to Snabb switch this is client buffer
+  return true
+end
 
 loop()
 

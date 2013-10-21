@@ -31,6 +31,7 @@ p.MSIX_VECTORS = 3
 p.VIRT_QUEUES  = 3
 p.QUEUE_ELEMENTS = 1024
 
+-- the fd fields are not ideal for us, prefer Lua objects
 ffi.cdef[[
 struct externalpci_region {
   int fd;
