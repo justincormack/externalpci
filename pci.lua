@@ -71,7 +71,7 @@ for i, ev in ep:get() do
     local fd = w[ev.fd]
     msg.io, msg.control = iovreq, chdr
     local n, err = fd:recvmsg(msg)
-    if n and #n ~= #req then
+    if n and n ~= #req then
       print("bad request size")
       n = nil
     end
