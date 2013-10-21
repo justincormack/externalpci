@@ -59,6 +59,7 @@ local chdr = t.cmsghdr("socket", "rights", nil, s.int) -- space for single fd
 local msg = t.msghdr()
 
 local function resp(fd)
+  -- receive request
   local recvfd
   msg.iov, msg.control = iovreq, chdr
   local n, err = fd:recvmsg(msg)
@@ -102,14 +103,17 @@ local function resp(fd)
   end
 
   -- send response
-  msg.io, msg.control = iovres, nil
+  msg.iov, msg.control = iovres, nil
   if res.type == p.EXTERNALPCI_REQ.PCI_INFO then -- need to send fd
     chdr:setdata(res.pci_info.hotspot_fd)
     msg.control = chdr
   end
   local n, err = fd:sendmsg(msg)
   print("sent response")
-  if n and n ~= #res then n, err = nil, "short send" end
+  if n and n ~= #res then
+    print("short send " .. n .. " not " .. #res)
+    n = nil
+  end
   if not n then
     if err then print("send error: " .. tostring(err)) end
     fd:close()
@@ -167,23 +171,6 @@ handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
 end
 
 handle_request[p.EXTERNALPCI_REQ.REGION] = function(req, res, fd)
---[[
-     static uintptr_t address_hint = (1ULL << 32);
-      Region r(req.region.phys_addr,
-	       req.region.size,
-	       reinterpret_cast<uint8_t *>(mmap((void *)address_hint, req.region.size,
-						PROT_READ | PROT_WRITE,
-						MAP_SHARED,
-						req.region.fd,
-						req.region.offset)));
-      close(req.region.fd);
-      if (r.mapping == MAP_FAILED) {
-	_sw.logf("mmap failed.");
-	return false;
-      }
-      address_hint += req.region.size;
-      return insert_region(r);
-]]
   local mem, err = S.mmap(pt.void(address_hint), req.region.size, "read, write", "shared", fd, req.region.offset)
   fd:close()
   if not mem then
