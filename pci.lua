@@ -106,7 +106,7 @@ for i, ev in ep:get() do
       end
     end
     if not n then
-      if err then print(err) end
+      if err then print("recv error: " .. tostring(err)) end
       fd:close()
       w[ev.fd] = nil
       print("connection closed")
@@ -122,7 +122,7 @@ for i, ev in ep:get() do
     print("sent response")
     if n and n ~= #res then n, err = nil, "short send" end
     if not n then
-      if err then print(err) end
+      if err then print("send error: " .. tostring(err)) end
       fd:close()
       w[ev.fd] = nil
       print("connection closed")
