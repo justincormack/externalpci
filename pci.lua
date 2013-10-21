@@ -69,7 +69,6 @@ local function resp(fd)
     print("client closed connection")
     n = nil
   end
-  print("got request")
   if n and tonumber(msg.msg_controllen) ~= 0 then
     for mc, cmsg in msg:cmsgs() do
       for fd in cmsg:fds() do
@@ -88,11 +87,7 @@ local function resp(fd)
       print("unhandled request type " .. req.type)
       n = nil
     else
-print("ff")
-print(res, req, res.type, req.type)
-
       res.type = req.type
-print("ok")
       n = handle_request[req.type](req, res, recvfd)
       if not n then print("req handler failed") end
     end
@@ -103,15 +98,13 @@ print("ok")
     print("connection closed")
     return
   end
-
   -- send response
   msg.iov, msg.control = iovres, nil
   if res.type == p.EXTERNALPCI_REQ.PCI_INFO then -- need to send fd
-    chdr:setdata(pt.int(res.pci_info.hotspot_fd), s.int)
+    chdr:setfd(res.pci_info.hotspot_fd)
     msg.control = chdr
   end
   local n, err = fd:sendmsg(msg)
-  print("sent response")
   if n and n ~= #res then
     print("short send " .. n .. " not " .. #res)
     n = nil
@@ -161,16 +154,13 @@ handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
   for i = 1, 5 do
     info.bar[i].size = 0
   end
-
   -- irq info
   info.msix_vectors = p.MSIX_VECTORS
-
   -- hotspot
   info.hotspot_bar = 0
   info.hotspot_addr = c.VIRTIO.PCI_QUEUE_NOTIFY
   info.hotspot_size = 2
   info.hotspot_fd = evfd:getfd()
-
   return true
 end
 
