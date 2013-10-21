@@ -105,7 +105,7 @@ local function resp(fd)
   -- send response
   msg.iov, msg.control = iovres, nil
   if res.type == p.EXTERNALPCI_REQ.PCI_INFO then -- need to send fd
-    chdr:setdata(res.pci_info.hotspot_fd)
+    chdr:setdata(pt.int(res.pci_info.hotspot_fd), s.int)
     msg.control = chdr
   end
   local n, err = fd:sendmsg(msg)
@@ -153,7 +153,7 @@ handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
     p.VIRTIO_NET.VENDOR_ID, p.VIRTIO_NET.DEVICE_ID, p.VIRTIO_NET.SUBSYSTEM_ID, p.VIRTIO_NET.SUBSYSTEM_VENDOR_ID
 
   -- bar sizes, just one IO space
-  info.bar[0] = 0x40 + c.PCI_BASE_ADDRESS.SPACE_IO
+  info.bar[0].size = 0x40 + c.PCI_BASE_ADDRESS.SPACE_IO
   for i = 1, 5 do
     info.bar[i].size = 0
   end
