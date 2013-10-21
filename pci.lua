@@ -54,6 +54,68 @@ local iovres = t.iovec(res, #res)
 local chdr = t.cmsghdr("socket", "rights", nil, s.int) -- space for single fd
 local msg = t.msghdr()
 
+local function resp(fd)
+  msg.io, msg.control = iovreq, chdr
+  local n, err = fd:recvmsg(msg)
+  if n and n ~= #req then
+    print("bad request size")
+    n = nil
+  end
+  if n and n == 0 then
+    print("client closed connection")
+    n = nil
+  end
+  print("got request")
+  if n then
+    local recvfd
+    for mc, cmsg in msg:cmsgs() do
+      for fd in cmsg:fds() do
+        recvfd = fd
+      end
+    end
+    if req.type == p.EXTERNALPCI_REQ.REGION then
+      if recvfd then req.region.fd = recvfd else n = nil end
+    elseif req.type == p.EXTERNALPCI_REQ.IRQ then
+      if recvfd then req.irq_req.fd = recvfd else n = nil end
+    elseif recvfd then
+      print("unexpected fd sent")
+      n = nil
+    end
+  end
+  if n then
+    if not handle_request[req.type] then
+      print("unhandled request type " .. req.type)
+      n = nil
+    else
+      res.type = req.type
+      n = handle_request[req.type](req, res)
+    end
+  end
+  if not n then
+    if err then print("recv error: " .. tostring(err)) end
+    fd:close()
+    print("connection closed")
+    return
+  end
+
+  -- send response
+  msg.io, msg.control = iovres, nil
+  if res.type == p.EXTERNALPCI_REQ.PCI_INFO then -- need to send fd
+    chdr:setdata(res.pci_info.hotspot_fd)
+    msg.control = chdr
+  end
+  local n, err = fd:sendmsg(msg)
+  print("sent response")
+  if n and n ~= #res then n, err = nil, "short send" end
+  if not n then
+    if err then print("send error: " .. tostring(err)) end
+    fd:close()
+    print("connection closed")
+    return
+  end
+  return true
+end
+
 for i, ev in ep:get() do
 
   if ep.eof(ev) then
@@ -68,65 +130,8 @@ for i, ev in ep:get() do
       w[a:getfd()] = a
     end
   else
-    local fd = w[ev.fd]
-    msg.io, msg.control = iovreq, chdr
-    local n, err = fd:recvmsg(msg)
-    if n and n ~= #req then
-      print("bad request size")
-      n = nil
-    end
-    if n and n == 0 then
-      print("client closed connection")
-      n = nil
-    end
-    print("got request")
-    if n then
-      local recvfd
-      for mc, cmsg in msg:cmsgs() do
-        for fd in cmsg:fds() do
-          recvfd = fd
-        end
-      end
-      if req.type == p.EXTERNALPCI_REQ.REGION then
-        if recvfd then req.region.fd = recvfd else n = nil end
-      elseif req.type == p.EXTERNALPCI_REQ.IRQ then
-        if recvfd then req.irq_req.fd = recvfd else n = nil end
-      elseif recvfd then
-        print("unexpected fd sent")
-        n = nil
-      end
-    end
-    if n then
-      if not handle_request[req.type] then
-        print("unhandled request type " .. req.type)
-        n = nil
-      else
-        res.type = req.type
-        n = handle_request[req.type](req, res)
-      end
-    end
-    if not n then
-      if err then print("recv error: " .. tostring(err)) end
-      fd:close()
-      w[ev.fd] = nil
-      print("connection closed")
-    end
-
-    -- send response
-    msg.io, msg.control = iovres, nil
-    if res.type == p.EXTERNALPCI_REQ.PCI_INFO then -- need to send fd
-      chdr:setdata(res.pci_info.hotspot_fd)
-      msg.control = chdr
-    end
-    local n, err = fd:sendmsg(msg)
-    print("sent response")
-    if n and n ~= #res then n, err = nil, "short send" end
-    if not n then
-      if err then print("send error: " .. tostring(err)) end
-      fd:close()
-      w[ev.fd] = nil
-      print("connection closed")
-    end
+    local ok = resp(w[ev.fd])
+    if not ok then w[ev.fd] = nil end
   end
 end
 
