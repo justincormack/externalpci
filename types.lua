@@ -1,4 +1,4 @@
-local ffi = require "ffi"
+local ffi, bit = require "ffi", require "bit"
 
 local p = {}
 
@@ -112,6 +112,55 @@ p.iot_res = ffi.typeof("struct externalpci_iot_res")
 p.irq_req = ffi.typeof("struct externalpci_irq_req")
 p.irq_res = ffi.typeof("struct externalpci_irq_res")
 p.pci_info_res = ffi.typeof("struct externalpci_pci_info_res")
+
+-- constants from ljsyscall
+p.PCI_BASE_ADDRESS = {
+  SPACE         = 0x01,
+  SPACE_IO      = 0x01,
+  SPACE_MEMORY  = 0x00,
+  MEM_TYPE_MASK = 0x06,
+  MEM_TYPE_32   = 0x00,
+  MEM_TYPE_1M   = 0x02,
+  MEM_TYPE_64   = 0x04,
+  MEM_PREFETCH  = 0x08,
+  --MEM_MASK      (~0x0fUL)
+  --IO_MASK       (~0x03UL)
+}
+
+p.VIRTIO = {
+  PCI_HOST_FEATURES       = 0,
+  PCI_GUEST_FEATURES      = 4,
+  PCI_QUEUE_PFN           = 8,
+  PCI_QUEUE_NUM           = 12,
+  PCI_QUEUE_SEL           = 14,
+  PCI_QUEUE_NOTIFY        = 16,
+  PCI_STATUS              = 18,
+  PCI_ISR                 = 19,
+  PCI_ISR_CONFIG          = 0x2,
+  MSI_CONFIG_VECTOR       = 20,
+  MSI_QUEUE_VECTOR        = 22,
+  MSI_NO_VECTOR           = 0xffff,
+  PCI_ABI_VERSION         = 0,
+  PCI_QUEUE_ADDR_SHIFT    = 12,
+  PCI_VRING_ALIGN         = 4096,
+  -- VIRTIO_PCI_CONFIG_OFF(msix_enabled)     ((msix_enabled) ? 24 : 20)
+}
+
+p.EPOLL = {
+  IN  = 0x001,
+  PRI = 0x002,
+  OUT = 0x004,
+  RDNORM = 0x040,
+  RDBAND = 0x080,
+  WRNORM = 0x100,
+  WRBAND = 0x200,
+  MSG = 0x400,
+  ERR = 0x008,
+  HUP = 0x010,
+  RDHUP = 0x2000,
+  ONESHOT = bit.lshift(1, 30),
+  ET = bit.lshift(1, 30) * 2, -- 2^31 but making sure no sign issue
+}
 
 return p
 

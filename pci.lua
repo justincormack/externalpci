@@ -12,7 +12,7 @@ local ffi, bit = require "ffi", require "bit"
 package.path = "./?.lua;./ljsyscall/?.lua;"
 
 local S = require "syscall"
-local t, c, s, pt = S.t, S.c, S.types.s, S.types.pt
+local t, s, pt = S.t, S.types.s, S.types.pt
 local p = require "types" -- pci types
 
 local maxevents = 1024
@@ -23,7 +23,7 @@ local poll = {
   event = t.epoll_event(),
   add = function(this, s)
     local event = this.event
-    event.events = c.EPOLL.IN
+    event.events = p.EPOLL.IN
     event.data.fd = s:getfd()
     assert(this.fd:epoll_ctl("add", s, event))
   end,
@@ -154,7 +154,7 @@ handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
     p.VIRTIO_NET.VENDOR_ID, p.VIRTIO_NET.DEVICE_ID, p.VIRTIO_NET.SUBSYSTEM_ID, p.VIRTIO_NET.SUBSYSTEM_VENDOR_ID
 
   -- bar sizes, just one IO space
-  info.bar[0].size = 0x40 + c.PCI_BASE_ADDRESS.SPACE_IO
+  info.bar[0].size = 0x40 + p.PCI_BASE_ADDRESS.SPACE_IO
   for i = 1, 5 do
     info.bar[i].size = 0
   end
@@ -162,7 +162,7 @@ handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
   info.msix_vectors = p.MSIX_VECTORS
   -- hotspot
   info.hotspot_bar = 0
-  info.hotspot_addr = c.VIRTIO.PCI_QUEUE_NOTIFY
+  info.hotspot_addr = p.VIRTIO.PCI_QUEUE_NOTIFY
   info.hotspot_size = 2
   info.hotspot_fd = evfd:getfd()
   return true
