@@ -12,8 +12,13 @@ local ffi, bit = require "ffi", require "bit"
 package.path = "./?.lua;./ljsyscall/?.lua;"
 
 local S = require "syscall"
-local t, s, pt = S.t, S.types.s, S.types.pt
+local t, s = S.t, S.types.s
 local p = require "types" -- pci types
+
+local voidp = ffi.typeof("void *")
+function void(x)
+  return ffi.cast(voidp, x)
+end
 
 local maxevents = 1024
 local poll = {
@@ -127,7 +132,7 @@ local function loop()
 for i, ev in ep:get() do
 
   if ep.eof(ev) then
-    ev.fd:close()
+    w[ev.fd]:close()
     w[ev.fd] = nil
   end
 
@@ -169,7 +174,7 @@ handle_request[p.EXTERNALPCI_REQ.PCI_INFO] = function(req, res)
 end
 
 handle_request[p.EXTERNALPCI_REQ.REGION] = function(req, res, fd)
-  local mem, err = S.mmap(pt.void(address_hint), req.region.size, "read, write", "shared", fd, req.region.offset)
+  local mem, err = S.mmap(void(address_hint), req.region.size, "read, write", "shared", fd, req.region.offset)
   fd:close()
   if not mem then
     print("mmap: " .. tostring(err))
